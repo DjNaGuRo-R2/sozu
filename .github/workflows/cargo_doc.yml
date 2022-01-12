@@ -32,34 +32,34 @@ jobs:
       - name: Checkout 
         uses: actions/checkout@v2
       - name: Move to project root directory
-        run: cd ${inputs.PROJECT_ROOT}
+        run: cd ${{inputs.PROJECT_ROOT}}
       - name: Check existence of Cargo.toml manifest file
         run: |
           if [ ! -f "Cargo.toml" ]; then
-            echo ERROR --> Any Cargo.toml file isn't present in the given root project folder ${inputs.PROJECT_ROOT}
+            echo ERROR --> Any Cargo.toml file isn't present in the given root project folder ${{inputs.PROJECT_ROOT}}
             exit 1
           fi
       - name: Check if --lib and --release options are activated
         run: |
-          if [ ${inputs.ONLY_LIB} ]; then
+          if [ ${{inputs.ONLY_LIB}} ]; then
             echo "ADDITIONAL_OPTIONS+=' --lib'" >> GITHUB_ENV
           fi
-          if [ ${inputs.RELEASE_MODE} ]; then
+          if [ ${{inputs.RELEASE_MODE}} ]; then
             echo "ADDITIONAL_OPTIONS+=' --release'" >> GITHUB_ENV
           fi
       - name: Check if CI workspace is tdifferent to the PROJECT ROOT
         run: |
-          if [ ${inputs.PROJECT_ROOT} != GITHUB_WORKSPACE ]; then
-            echo "OUTPUT_FOLDER='GITHUB_WORKSPACE/${inputs.OUTPUT_FOLDER}'" >> GITHUB_ENV
+          if [ ${{inputs.PROJECT_ROOT}} != GITHUB_WORKSPACE ]; then
+            echo "OUTPUT_FOLDER='GITHUB_WORKSPACE/${{inputs.OUTPUT_FOLDER}}'" >> GITHUB_ENV
           fi
       - name: Build documentation
         run: |
-          echo "Inputs OUTPUT_FOLDER: ${inputs.OUTPUT_FOLDER}, ADDITIONAL_OPTIONS: ${inputs.ADDITIONAL_OPTIONS}"
-          echo "Env updates OUTPUT_FOLDER: ${env.OUTPUT_FOLDER}, ADDITIONAL_OPTIONS: ${env.ADDITIONAL_OPTIONS}"
-          cargo doc --target-dir ${env.OUTPUT_FOLDER} ${env.ADDITIONAL_OPTIONS}
+          echo "Inputs OUTPUT_FOLDER: ${{inputs.OUTPUT_FOLDER}}, ADDITIONAL_OPTIONS: ${{inputs.ADDITIONAL_OPTIONS}}"
+          echo "Env updates OUTPUT_FOLDER: ${{env.OUTPUT_FOLDER}}, ADDITIONAL_OPTIONS: ${{env.ADDITIONAL_OPTIONS}}"
+          cargo doc --target-dir ${{env.OUTPUT_FOLDER}} ${{env.ADDITIONAL_OPTIONS}}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
           name: Documentation
-          path: ${env.OUTPUT_FOLDER}
+          path: ${{env.OUTPUT_FOLDER}}
           retention-days: 15
