@@ -58,7 +58,9 @@ jobs:
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
           echo "Env updates ONLY_LIB: ${{ env.ONLY_LIB }}, RELEASE_MODE: ${{ env.RELEASE_MODE }}"
-          cargo doc --target-dir ${{ env.OUTPUT_FOLDER }} ${{ env.ADDITIONAL_OPTIONS }}
+          echo "GITHUB_ENV content $GITHUB_ENV and GITHUB_WORKSPACE : $GITHUB_WORKSPACE"
+          echo "GITHUB_ENV content GITHUB_ENV and GITHUB_WORKSPACE : GITHUB_WORKSPACE ($ symbol ommited before env name)"
+          cargo doc --target-dir ${{ inputs.OUTPUT_FOLDER }} ${{ inputs.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
