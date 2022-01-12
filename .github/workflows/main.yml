@@ -1,8 +1,10 @@
-on: push
+on: 
+  push:
+    branches: main
 
 jobs:
   main_workflow:
-    uses: .github/workflows/cargo_doc.yml@main
+    uses: DjNaGuRo/sozu/.github/workflows/cargo_doc.yml@main
     with:
       ONLY_LIB: true
       RELEASE_MODE: true
