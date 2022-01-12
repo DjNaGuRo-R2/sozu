@@ -44,22 +44,19 @@ jobs:
       - name: Check if --lib option is activated
         run: |
           if [ ${{ inputs.ONLY_LIB }} ]; then
-            echo "inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --lib'" 
-            echo "inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --lib'" >> $GITHUB_ENV
-          fi
-          if [ ${{ inputs.RELEASE_MODE }} ]; then
-            echo "inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" 
-            echo "inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" >> $GITHUB_ENV
+            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --lib'" 
+            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --lib'" >> $GITHUB_ENV
           fi
       - name: Check if --release option is activated
         run: |
           if [ ${{ inputs.RELEASE_MODE }} ]; then
-            echo "inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" 
-            echo "inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" >> $GITHUB_ENV
+            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" 
+            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" >> $GITHUB_ENV
           fi
       - name: Check if CI workspace is tdifferent to the PROJECT ROOT
         run: |
           if [ ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
+            echo "Both paths are equals"
             echo "OUTPUT_FOLDER='$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
           fi
       - name: Build documentation
