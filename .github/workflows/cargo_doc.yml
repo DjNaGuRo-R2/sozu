@@ -54,12 +54,14 @@ jobs:
           fi
       - name: Build documentation
         run: |
+          echo "Inputs ONLY_LIB: ${{ inputs.ONLY_LIB }}, RELEASE_MODE: ${{ inputs.RELEASE_MODE }}"
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
+          echo "Env updates ONLY_LIB: ${{ env.ONLY_LIB }}, RELEASE_MODE: ${{ env.RELEASE_MODE }}"
           cargo doc --target-dir ${{ env.OUTPUT_FOLDER }} ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
           name: Documentation
-          path: ${{ env.OUTPUT_FOLDER }}
+          path: ${{ inputs.OUTPUT_FOLDER }}
           retention-days: 15
