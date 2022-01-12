@@ -1,0 +1,9 @@
+on: push
+
+jobs:
+  main_workflow:
+    uses: ./cargo_doc.yml@main
+    with:
+      ONLY_LIB: true
+      RELEASE_MODE: true
+      
