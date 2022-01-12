@@ -32,7 +32,9 @@ jobs:
       - name: Checkout 
         uses: actions/checkout@v2
       - name: Move to project root directory
-        run: cd ${{ inputs.PROJECT_ROOT }}
+        run: |
+          cd ${{ inputs.PROJECT_ROOT }}
+          echo "PROJECT_ROOT_RELATIVE_PATH=$(pwd)" >> $GITHUB_ENV
       - name: Check existence of Cargo.toml manifest file
         run: |
           if [ ! -f "Cargo.toml" ]; then
@@ -42,23 +44,22 @@ jobs:
       - name: Check if --lib and --release options are activated
         run: |
           if [ ${{ inputs.ONLY_LIB }} ]; then
-            echo "ADDITIONAL_OPTIONS+=' --lib'" >> $GITHUB_ENV
+            echo "ADDITIONAL_OPTIONS='$ADDITIONAL_OPTIONS --lib'" >> $GITHUB_ENV
           fi
           if [ ${{ inputs.RELEASE_MODE }} ]; then
-            echo "ADDITIONAL_OPTIONS+=' --release'" >> $GITHUB_ENV
+            echo "ADDITIONAL_OPTIONS='$ADDITIONAL_OPTIONS --release'" >> $GITHUB_ENV
           fi
       - name: Check if CI workspace is tdifferent to the PROJECT ROOT
         run: |
-          if [ ${{ inputs.PROJECT_ROOT }} -ef $GITHUB_WORKSPACE ]; then
-            echo "OUTPUT_FOLDER='GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
+          if [ ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{env.GITHUB_WORKSPACE}} ]; then
+            echo "OUTPUT_FOLDER='$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
           fi
       - name: Build documentation
         run: |
           echo "Inputs ONLY_LIB: ${{ inputs.ONLY_LIB }}, RELEASE_MODE: ${{ inputs.RELEASE_MODE }}"
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
-          echo "Env updates ONLY_LIB: ${{ env.ONLY_LIB }}, RELEASE_MODE: ${{ env.RELEASE_MODE }}"
-          echo "GITHUB_ENV content $GITHUB_ENV and GITHUB_WORKSPACE : $GITHUB_WORKSPACE"
+          echo "PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH - $GITHUB_ENV and GITHUB_WORKSPACE : $GITHUB_WORKSPACE"
           cargo doc --target-dir ${{ inputs.OUTPUT_FOLDER }} ${{ inputs.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
