@@ -1,4 +1,5 @@
 name: CI
+on: []
 jobs:
   test:
     name: Test
