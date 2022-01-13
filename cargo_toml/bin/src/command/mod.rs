@@ -1,3 +1,4 @@
+use anyhow::{bail, Context};
 use async_dup::Arc;
 use futures::channel::{mpsc::*, oneshot};
 use futures::{SinkExt, StreamExt};
@@ -7,7 +8,6 @@ use nix::unistd::Pid;
 use serde_json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::{AsRawFd, FromRawFd, IntoRawFd};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -19,6 +19,7 @@ use sozu_command::command::{
     CommandRequestData, CommandResponse, CommandResponseData, CommandStatus, Event, RunState,
 };
 use sozu_command::config::Config;
+
 use sozu_command::proxy::{ProxyRequest, ProxyRequestData, ProxyResponseData, ProxyResponseStatus};
 use sozu_command::scm_socket::{Listeners, ScmSocket};
 use sozu_command::state::ConfigState;
@@ -94,7 +95,7 @@ impl CommandServer {
         command_rx: Receiver<CommandMessage>,
         mut workers: Vec<Worker>,
         accept_cancel: oneshot::Sender<()>,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         //FIXME
         if config.metrics.is_some() {
             /*METRICS.with(|metrics| {
@@ -130,11 +131,11 @@ impl CommandServer {
         }
 
         let next_id = workers.len() as u32;
-        let executable_path = unsafe { get_executable_path() };
+        let executable_path = unsafe { get_executable_path()? };
         let backends_count = state.count_backends();
         let frontends_count = state.count_frontends();
 
-        CommandServer {
+        Ok(CommandServer {
             fd,
             config,
             state,
@@ -149,7 +150,7 @@ impl CommandServer {
             backends_count,
             frontends_count,
             accept_cancel: Some(accept_cancel),
-        }
+        })
     }
 
     pub fn generate_upgrade_data(&self) -> UpgradeData {
@@ -171,7 +172,7 @@ impl CommandServer {
         }
     }
 
-    pub fn from_upgrade_data(upgrade_data: UpgradeData) -> CommandServer {
+    pub fn from_upgrade_data(upgrade_data: UpgradeData) -> anyhow::Result<CommandServer> {
         let UpgradeData {
             command,
             config,
@@ -181,7 +182,7 @@ impl CommandServer {
         } = upgrade_data;
 
         debug!("listener is: {}", command);
-        let listener = Async::new(unsafe { UnixListener::from_raw_fd(command) }).unwrap();
+        let listener = Async::new(unsafe { UnixListener::from_raw_fd(command) })?;
 
         let (accept_cancel_tx, accept_cancel_rx) = oneshot::channel();
         let (command_tx, command_rx) = channel(10000);
@@ -239,7 +240,7 @@ impl CommandServer {
                 let (worker_tx, worker_rx) = channel(10000);
                 let sender = Some(worker_tx);
 
-                println!("deserializing worker: {:?}", serialized);
+                debug!("deserializing worker: {:?}", serialized);
                 let stream = Async::new(unsafe { UnixStream::from_raw_fd(serialized.fd) }).unwrap();
 
                 let id = serialized.id;
@@ -270,9 +271,9 @@ impl CommandServer {
         let backends_count = config_state.count_backends();
         let frontends_count = config_state.count_frontends();
 
-        let executable_path = unsafe { get_executable_path() };
+        let executable_path = unsafe { get_executable_path()? };
 
-        CommandServer {
+        Ok(CommandServer {
             fd: command,
             config,
             state,
@@ -287,29 +288,45 @@ impl CommandServer {
             backends_count,
             frontends_count,
             accept_cancel: Some(accept_cancel_tx),
-        }
+        })
     }
 
-    pub fn disable_cloexec_before_upgrade(&mut self) {
+    pub fn disable_cloexec_before_upgrade(&mut self) -> anyhow::Result<()> {
         for ref mut worker in self.workers.iter_mut() {
             if worker.run_state == RunState::Running {
-                util::disable_close_on_exec(worker.fd);
+                let _ =util::disable_close_on_exec(worker.fd).map_err(|e| {
+                    error!(
+                        "could not disable close on exec for worker {}: {}",
+                        worker.id, e
+                    );
+                });
             }
         }
         trace!("disabling cloexec on listener: {}", self.fd);
-        util::disable_close_on_exec(self.fd);
+        util::disable_close_on_exec(self.fd)?;
+        Ok(())
     }
 
-    pub fn enable_cloexec_after_upgrade(&mut self) {
+    pub fn enable_cloexec_after_upgrade(&mut self) -> anyhow::Result<()> {
         for ref mut worker in self.workers.iter_mut() {
             if worker.run_state == RunState::Running {
-                util::enable_close_on_exec(worker.fd);
+                let _ = util::enable_close_on_exec(worker.fd).map_err(|e| {
+                    error!(
+                        "could not enable close on exec for worker {}: {}",
+                        worker.id, e
+                    );
+                });
             }
         }
-        util::enable_close_on_exec(self.fd);
+        util::enable_close_on_exec(self.fd)?;
+        Ok(())
     }
 
     pub async fn load_static_application_configuration(&mut self) {
+        let (tx, mut rx) = futures::channel::mpsc::channel(self.workers.len() * 2);
+
+        let mut total_message_count = 0usize;
+
         //FIXME: too many loops, this could be cleaner
         for message in self.config.generate_config_messages() {
             if let CommandRequestData::Proxy(order) = message.data {
@@ -320,34 +337,76 @@ impl CommandServer {
                 } else {
                     debug!("config generated {:?}", order);
                 }
-                let mut found = false;
+
+                let mut count = 0usize;
                 for ref mut worker in self.workers.iter_mut().filter(|worker| {
                     worker.run_state != RunState::Stopping && worker.run_state != RunState::Stopped
                 }) {
                     worker.send(message.id.clone(), order.clone()).await;
-                    found = true;
+                    count += 1;
                 }
 
-                if !found {
+                if count == 0 {
                     // FIXME: should send back error here
                     error!("no worker found");
+                } else {
+                    self.in_flight
+                        .insert(message.id.clone(), (tx.clone(), count));
+                    total_message_count += count;
                 }
             }
         }
 
         self.backends_count = self.state.count_backends();
         self.frontends_count = self.state.count_frontends();
-        gauge!("configuration.applications", self.state.applications.len());
+        gauge!("configuration.clusters", self.state.clusters.len());
         gauge!("configuration.backends", self.backends_count);
         gauge!("configuration.frontends", self.frontends_count);
+
+        smol::spawn(async move {
+            let mut ok = 0usize;
+            let mut error = 0usize;
+
+            let mut i = 0;
+            while let Some(proxy_response) = rx.next().await {
+                match proxy_response.status {
+                    ProxyResponseStatus::Ok => {
+                        ok += 1;
+                    }
+                    ProxyResponseStatus::Processing => {
+                        //info!("metrics processing");
+                        continue;
+                    }
+                    ProxyResponseStatus::Error(e) => {
+                        error!(
+                            "error handling configuration message {}: {}",
+                            proxy_response.id, e
+                        );
+                        error += 1;
+                    }
+                };
+
+                i += 1;
+                if i == total_message_count {
+                    break;
+                }
+            }
+
+            if error == 0 {
+                info!("loading state: {} ok messages, 0 errors", ok);
+            } else {
+                error!("loading state: {} ok messages, {} errors", ok, error);
+            }
+        })
+        .detach();
     }
 
     // in case a worker has crashed while Running and automatic_worker_restart is set to true
-    pub async fn restart_worker(&mut self, worker_id: u32) {
+    pub async fn restart_worker(&mut self, worker_id: u32) -> anyhow::Result<()> {
         let ref mut worker = self
             .workers
             .get_mut(worker_id as usize)
-            .expect("there should be a worker at that token");
+            .with_context(|| "there should be a worker at that token")?;
 
         match kill(Pid::from_raw(worker.pid), None) {
             Ok(_) => {
@@ -355,7 +414,7 @@ impl CommandServer {
                     "worker process {} (PID = {}) is alive but the worker must have crashed. Killing and replacing",
                     worker.id, worker.pid
                 );
-            },
+            }
             Err(_) => {
                 error!(
                     "worker process {} (PID = {}) not answering, killing and replacing",
@@ -365,8 +424,7 @@ impl CommandServer {
         }
 
         kill(Pid::from_raw(worker.pid), Signal::SIGKILL)
-            .map_err(|e| error!("failed to kill the worker process: {:?}", e))
-            .unwrap();
+            .with_context(|| "failed to kill the worker process")?;
 
         worker.run_state = RunState::Stopped;
 
@@ -396,8 +454,7 @@ impl CommandServer {
             let stream = Async::new(unsafe {
                 let fd = sock.into_raw_fd();
                 UnixStream::from_raw_fd(fd)
-            })
-            .unwrap();
+            })?;
 
             let id = worker.id;
             let command_tx = self.command_tx.clone();
@@ -419,9 +476,13 @@ impl CommandServer {
                         id: format!("RESTART-{}-ACTIVATE-{}", id, count),
                         order,
                     })
-                    .await {
-                        error!("could not send activate order to worker {:?}: {:?}", worker.id, e);
-                    }
+                    .await
+                {
+                    error!(
+                        "could not send activate order to worker {:?}: {:?}",
+                        worker.id, e
+                    );
+                }
                 count += 1;
             }
 
@@ -433,11 +494,49 @@ impl CommandServer {
                     id: format!("RESTART-{}-STATUS", id),
                     order: ProxyRequestData::Status,
                 })
-            .await{
-                error!("could not send status message to worker {:?}: {:?}", worker.id, e);
+                .await
+            {
+                error!(
+                    "could not send status message to worker {:?}: {:?}",
+                    worker.id, e
+                );
             }
 
             self.workers.push(worker);
+        }
+        Ok(())
+    }
+
+    async fn handle_worker_close(&mut self, id: u32) {
+        info!("removing worker {}", id);
+
+        if let Some(w) = self.workers.iter_mut().filter(|w| w.id == id).next() {
+            // In case a worker crashes and should be restarted
+            if self.config.worker_automatic_restart && w.run_state == RunState::Running {
+                info!("Automatically restarting worker {}", id);
+                match self.restart_worker(id).await {
+                    Ok(()) => info!("Worker {} has automatically restarted!", id),
+                    Err(e) => error!("Could not restart worker {}: {}", id, e),
+                }
+                return;
+            }
+
+            info!("Closing the worker {}.", w.id);
+            if !w.the_pid_is_alive() {
+                info!("Worker {} is dead, setting to Stopped.", w.id);
+                w.run_state = RunState::Stopped;
+                return;
+            }
+
+            info!("Worker {} is not dead but should be. Let's kill it.", w.id);
+
+            match kill(Pid::from_raw(w.pid), Signal::SIGKILL) {
+                Ok(()) => {
+                    info!("Worker {} was successfuly killed", id);
+                    w.run_state = RunState::Stopped;
+                }
+                Err(e) => error!("failed to kill the worker process: {:?}", e),
+            }
         }
     }
 }
@@ -446,17 +545,11 @@ pub fn start(
     config: Config,
     command_socket_path: String,
     workers: Vec<Worker>,
-) -> std::io::Result<()> {
+) -> anyhow::Result<()> {
     let addr = PathBuf::from(&command_socket_path);
-    if let Err(e) = fs::remove_file(&addr) {
-        match e.kind() {
-            ErrorKind::NotFound => {}
-            _ => {
-                error!("could not delete previous socket at {:?}: {:?}", addr, e);
-                return Ok(());
-            }
-        }
-    }
+
+    fs::remove_file(&addr)
+        .with_context(|| format!("could not delete previous socket at {:?}", addr))?;
 
     let srv = match UnixListener::bind(&addr) {
         Err(e) => {
@@ -468,7 +561,7 @@ pub fn start(
                     error!("could not kill worker: {:?}", e);
                 });
             }
-            return Ok(());
+            bail!("couldn't start server");
         }
         Ok(srv) => {
             if let Err(e) = fs::set_permissions(&addr, fs::Permissions::from_mode(0o600)) {
@@ -483,7 +576,7 @@ pub fn start(
                         error!("could not kill worker: {:?}", e);
                     });
                 }
-                return Ok(());
+                bail!("couldn't start server");
             }
             srv
         }
@@ -532,15 +625,15 @@ pub fn start(
         .detach();
 
         let saved_state = config.saved_state_path();
-        let mut server = CommandServer::new(fd, config, tx, command_rx, workers, accept_cancel_tx);
+        let mut server = CommandServer::new(fd, config, tx, command_rx, workers, accept_cancel_tx)?;
         server.load_static_application_configuration().await;
 
         if let Some(path) = saved_state {
             server
                 .load_state(None, "INITIALIZATION".to_string(), &path)
-                .await;
+                .await?;
         }
-        gauge!("configuration.applications", server.state.applications.len());
+        gauge!("configuration.clusters", server.state.clusters.len());
         gauge!("configuration.backends", server.backends_count);
         gauge!("configuration.frontends", server.frontends_count);
 
@@ -587,31 +680,13 @@ impl CommandServer {
                 }
                 CommandMessage::ClientRequest { id, message } => {
                     debug!("client {} sent {:?}", id, message);
-                    self.handle_client_message(id, message).await;
+                    match self.handle_client_message(id, message).await {
+                        Ok(()) => {}
+                        Err(e) => error!("{}", e),
+                    }
                 }
                 CommandMessage::WorkerClose { id } => {
-                    info!("removing worker {}", id);
-                    if let Some(w) = self.workers.iter_mut().filter(|w| w.id == id).next() {
-                        // In case a worker crashes and should be restarted
-                        if self.config.worker_automatic_restart && w.run_state == RunState::Running {
-                            self.restart_worker(id).await;
-                            return;
-                        }
-
-                        info!("Closing the worker {}.", w.id);
-                        if !w.the_pid_is_alive() {
-                            info!("Worker {} is dead, setting to Stopped.", w.id);
-                            w.run_state = RunState::Stopped;
-                            return;
-                        }
-
-                        info!("Worker {} is not dead but should be. Let's kill it.", w.id);
-                        kill(Pid::from_raw(w.pid), Signal::SIGKILL)
-                            .map_err(|e| error!("failed to kill the worker process: {:?}", e))
-                            .unwrap();
-
-                        w.run_state = RunState::Stopped;
-                    }
+                    self.handle_worker_close(id).await;
                 }
                 CommandMessage::WorkerResponse { id, message } => {
                     debug!("worker {} sent back {:?}", id, message);
@@ -633,8 +708,11 @@ impl CommandServer {
                     } else {
                         match self.in_flight.remove(&message.id) {
                             None => {
+                                // FIXME: this messsage happens a lot at startup because AddCluster
+                                // messages receive responses from each of the HTTP, HTTPS and TCP
+                                // proxys. The clusters list should be merged
                                 debug!("unknown message id: {}", message.id);
-                            },
+                            }
                             Some((mut tx, mut nb)) => {
                                 let message_id = message.id.clone();
 
@@ -649,8 +727,8 @@ impl CommandServer {
 
                                 tx.send(message).await.unwrap();
 
-                                if nb > 1 {
-                                    self.in_flight.insert(message_id, (tx, nb - 1));
+                                if nb > 0 {
+                                    self.in_flight.insert(message_id, (tx, nb));
                                 }
                             }
                         }
@@ -689,9 +767,10 @@ impl CommandServer {
                     message.into(),
                     data,
                 ))
-                .await {
-                    error!("could not send message to client {:?}: {:?}", client_id, e);
-                }
+                .await
+            {
+                error!("could not send message to client {:?}: {:?}", client_id, e);
+            }
         }
     }
 
@@ -720,9 +799,10 @@ impl CommandServer {
                     message.into(),
                     data,
                 ))
-                .await{
-                    error!("could not send message to client {:?}: {:?}", client_id, e);
-                }
+                .await
+            {
+                error!("could not send message to client {:?}: {:?}", client_id, e);
+            }
         }
     }
 }
@@ -761,14 +841,13 @@ async fn client(
 
         match serde_json::from_slice::<sozu_command::command::CommandRequest>(&message) {
             Err(e) => {
-                error!("could not decode message: {:?}", e);
+                error!("could not decode client message: {:?}", e);
                 break;
             }
             Ok(message) => {
                 debug!("got message: {:?}", message);
                 let id = id.clone();
-                if let Err(e) = tx.send(CommandMessage::ClientRequest { id, message })
-                    .await {
+                if let Err(e) = tx.send(CommandMessage::ClientRequest { id, message }).await {
                     error!("error writing to client: {:?}", e);
                 }
             }
@@ -816,7 +895,7 @@ async fn worker_loop(
 
         match serde_json::from_slice::<sozu_command::proxy::ProxyResponse>(&message) {
             Err(e) => {
-                error!("could not decode message: {:?}", e);
+                error!("could not decode worker message: {:?}", e);
                 break;
             }
             Ok(message) => {

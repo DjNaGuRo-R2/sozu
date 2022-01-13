@@ -15,15 +15,15 @@ fn main() {
         }
         _ => {
             println!("cargo:rustc-cfg=ossl110");
-        },//panic!("Unable to detect OpenSSL version"),
+        } //panic!("Unable to detect OpenSSL version"),
     }
 
-    if let Ok(_) = env::var("DEP_OPENSSL_LIBRESSL") {
+    if env::var("DEP_OPENSSL_LIBRESSL").is_ok() {
         println!("cargo:rustc-cfg=libressl");
     }
 
     if let Ok(vars) = env::var("DEP_OPENSSL_CONF") {
-        for var in vars.split(",") {
+        for var in vars.split(',') {
             println!("cargo:rustc-cfg=osslconf=\"{}\"", var);
         }
     }
