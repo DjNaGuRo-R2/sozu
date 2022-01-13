@@ -40,7 +40,8 @@ jobs:
         run: |
           if [ ! -f "Cargo.toml" ]; then
             echo "ERROR --> Any Cargo.toml file isn't present in the given root project folder ${{ inputs.PROJECT_ROOT }}"
-            exit 1
+            echo "INSIDE_IF_PATH=$(pwd)" >> $GITHUB_ENV
+            #exit 1
           fi
       - name: Create a copy of inputs which will be updated further
         run: |
