@@ -1,6 +1,6 @@
 on: 
   push:
-    branches: main
+    branches: dev
 
 jobs:
   main_workflow:
@@ -8,4 +8,5 @@ jobs:
     with:
       ONLY_LIB: true
       RELEASE_MODE: true
+      PROJECT_ROOT: ./cargo_toml
       
