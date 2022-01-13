@@ -41,21 +41,24 @@ jobs:
             echo "ERROR --> Any Cargo.toml file isn't present in the given root project folder ${{ inputs.PROJECT_ROOT }}"
             exit 1
           fi
+      - name: Create a copy of inputs which will be updated further
+        run: |
+          echo "ADDITIONAL_OPTIONS=${{inputs.ADDITIONAL_OPTIONS}}" >> $GITHUB_ENV
       - name: Check if --lib option is activated
         run: |
           if [ ${{ inputs.ONLY_LIB }} ]; then
-            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --lib'" 
-            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --lib'" >> $GITHUB_ENV
+            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --lib'" 
+            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --lib'" >> $GITHUB_ENV
           fi
       - name: Check if --release option is activated
         run: |
           if [ ${{ inputs.RELEASE_MODE }} ]; then
-            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" 
-            echo "$inputs.ADDITIONAL_OPTIONS='${{inputs.ADDITIONAL_OPTIONS}} --release'" >> $GITHUB_ENV
+            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --release'" 
+            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --release'" >> $GITHUB_ENV
           fi
-      - name: Check if CI workspace is tdifferent to the PROJECT ROOT
+      - name: Check if the CI workspace and the PROJECT ROOT are different
         run: |
-          if [ ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
+          if [ ! ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
             echo "Both paths are equals"
             echo "OUTPUT_FOLDER='$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
           fi
