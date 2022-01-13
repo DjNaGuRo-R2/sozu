@@ -64,8 +64,6 @@ jobs:
             echo "Both paths are different. Test result negation : $? "
             echo "OUTPUT_FOLDER=$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}" >> $GITHUB_ENV
           fi
-          [ ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]
-          echo "code status of the lastest previous instruction (with context) -> $?"
           test ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef $GITHUB_WORKSPACE 
           echo "code status of the lastest previous instruction (without context) -> $?"         
       - name: Build documentation
