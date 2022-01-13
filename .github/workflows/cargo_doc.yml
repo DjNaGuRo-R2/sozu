@@ -48,14 +48,14 @@ jobs:
       - name: Check if --lib option is activated
         run: |
           if [ ${{ inputs.ONLY_LIB }} ]; then
-            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --lib'" 
-            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --lib'" >> $GITHUB_ENV
+            echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --lib" 
+            echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --lib" >> $GITHUB_ENV
           fi
       - name: Check if --release option is activated
         run: |
           if [ ${{ inputs.RELEASE_MODE }} ]; then
-            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --release'" 
-            echo "ADDITIONAL_OPTIONS='${{env.ADDITIONAL_OPTIONS}} --release'" >> $GITHUB_ENV
+            echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --release" 
+            echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --release" >> $GITHUB_ENV
           fi
       - name: Check if the CI workspace and the PROJECT ROOT are different
         run: |
@@ -63,6 +63,7 @@ jobs:
             echo "Both paths are different. Test result negation : $? "
             echo "OUTPUT_FOLDER='$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
           fi
+          echo code status of the lastest previous instruction -> $?
       - name: Build documentation
         run: |
           echo "Inputs ONLY_LIB: ${{ inputs.ONLY_LIB }}, RELEASE_MODE: ${{ inputs.RELEASE_MODE }}"
