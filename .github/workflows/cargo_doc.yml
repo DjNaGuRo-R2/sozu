@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Move to project root directory
         run: |
+          echo "CIWORKSPACE_PATH=$GITHUB_WORKSPACE"
           cd ${{ inputs.PROJECT_ROOT }}
           echo "PROJECT_ROOT_RELATIVE_PATH=$(pwd)" >> $GITHUB_ENV
       - name: Check existence of Cargo.toml manifest file
@@ -57,7 +58,7 @@ jobs:
             echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --release" 
             echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --release" >> $GITHUB_ENV
           fi
-      - name: Check if the CI workspace and the PROJECT ROOT are different
+      - name: Check if the GITHUB WORKSPACE and the PROJECT ROOT are different
         run: |
           if [ ! ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
             echo "Both paths are different. Test result negation : $? "
@@ -69,11 +70,12 @@ jobs:
           echo "Inputs ONLY_LIB: ${{ inputs.ONLY_LIB }}, RELEASE_MODE: ${{ inputs.RELEASE_MODE }}"
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
-          echo "PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH and GITHUB_WORKSPACE : $GITHUB_WORKSPACE"
-          cargo doc --target-dir $OUTPUT_FOLDER ${{ env.ADDITIONAL_OPTIONS }}
+          echo "PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH and GITHUB_WORKSPACE : $GITHUB_WORKSPACE / its context: {{github.workspace}}"
+          cargo doc --target-dir ${{env.OUTPUT_FOLDER}} ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
+          if: failure()
           name: Documentation
           path: ${{ env.OUTPUT_FOLDER }}
           retention-days: 15
