@@ -61,17 +61,16 @@ jobs:
         run: |
           if [ ! ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
             echo "Both paths are different. Test result negation : $? "
-            echo "OUTPUT_FOLDER='$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
+            echo "OUTPUT_FOLDER=$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}" >> $GITHUB_ENV
           fi
-          echo code status of the lastest previous instruction -> $?
+          echo "code status of the lastest previous instruction -> $?"
       - name: Build documentation
         run: |
           echo "Inputs ONLY_LIB: ${{ inputs.ONLY_LIB }}, RELEASE_MODE: ${{ inputs.RELEASE_MODE }}"
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
           echo "PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH and GITHUB_WORKSPACE : $GITHUB_WORKSPACE"
-          echo "HOME PATH : $HOME"
-          cargo doc --target-dir ${{ env.OUTPUT_FOLDER }} ${{ env.ADDITIONAL_OPTIONS }}
+          cargo doc --target-dir $OUTPUT_FOLDER ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
