@@ -49,32 +49,31 @@ jobs:
       - name: Check if --lib option is activated
         run: |
           if [ ${{ inputs.ONLY_LIB }} ]; then
-            echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --lib" 
             echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --lib" >> $GITHUB_ENV
           fi
       - name: Check if --release option is activated
         run: |
           if [ ${{ inputs.RELEASE_MODE }} ]; then
-            echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --release" 
             echo "ADDITIONAL_OPTIONS=${{env.ADDITIONAL_OPTIONS}} --release" >> $GITHUB_ENV
           fi
       - name: Check if the GITHUB WORKSPACE and the PROJECT ROOT are different
         run: |
-          if [ ! ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
+          if [ ! $PROJECT_ROOT_RELATIVE_PATH -ef ${{github.workspace}} ]; then
             echo "Both paths are different. Test result negation : $? "
             echo "OUTPUT_FOLDER_PATH=$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}" >> $GITHUB_PATH
-          fi      
+          fi 
+          echo "OUTPUT_FOLDER_PATH : $OUTPUT_FOLDER_PATH | PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH"     
       - name: Build documentation
         run: |
           echo "Inputs ONLY_LIB: ${{ inputs.ONLY_LIB }}, RELEASE_MODE: ${{ inputs.RELEASE_MODE }}"
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
-          echo "Env updates OUTPUT_FOLDER_PATH: ${{ env.OUTPUT_FOLDER_PATH }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
+          echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
           echo "PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH and GITHUB_WORKSPACE : $GITHUB_WORKSPACE / its context: ${{github.workspace}}"
-          cargo doc --target-dir ${{env.OUTPUT_FOLDER_PATH}} ${{ env.ADDITIONAL_OPTIONS }}
+          cargo doc --target-dir ${{env.OUTPUT_FOLDER}} ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
-        #if: failure()
+        if: failure()
         with:
           name: Documentation
-          path: ${{ env.OUTPUT_FOLDER_PATH }}
+          path: ${{ env.OUTPUT_FOLDER }}
           retention-days: 15
