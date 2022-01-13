@@ -36,8 +36,10 @@ jobs:
           echo "CIWORKSPACE_PATH=$GITHUB_WORKSPACE" >> $GITHUB_ENV
           cd ${{ inputs.PROJECT_ROOT }}
           echo "PROJECT_ROOT_RELATIVE_PATH=$(pwd)" >> $GITHUB_ENV
+          echo "GITHUB_WORKSPACE : $GITHUB_WORKSPACE" 
       - name: Check existence of Cargo.toml manifest file
         run: |
+          cd ${{ inputs.PROJECT_ROOT }}
           if [ ! -f "Cargo.toml" ]; then
             echo "ERROR --> Any Cargo.toml file isn't present in the given root project folder ${{ inputs.PROJECT_ROOT }}"
             echo "INSIDE_IF_PATH=$(pwd)" >> $GITHUB_ENV
@@ -68,6 +70,7 @@ jobs:
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
           echo "PROJECT_ROOT_RELATIVE_PATH : ${{env.PROJECT_ROOT_RELATIVE_PATH}} and GITHUB_WORKSPACE : $GITHUB_WORKSPACE / its context: ${{github.workspace}}"
+          cd ${{ inputs.PROJECT_ROOT }}
           cargo doc --target-dir ${{env.OUTPUT_FOLDER}} ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
