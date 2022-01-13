@@ -44,6 +44,7 @@ jobs:
       - name: Create a copy of inputs which will be updated further
         run: |
           echo "ADDITIONAL_OPTIONS=${{inputs.ADDITIONAL_OPTIONS}}" >> $GITHUB_ENV
+          echo "OUTPUT_FOLDER=${{inputs.OUTPUT_FOLDER}}" >> $GITHUB_ENV
       - name: Check if --lib option is activated
         run: |
           if [ ${{ inputs.ONLY_LIB }} ]; then
@@ -59,7 +60,7 @@ jobs:
       - name: Check if the CI workspace and the PROJECT ROOT are different
         run: |
           if [ ! ${{ env.PROJECT_ROOT_RELATIVE_PATH }} -ef ${{github.workspace}} ]; then
-            echo "Both paths are equals"
+            echo "Both paths are different. Test result negation : $? "
             echo "OUTPUT_FOLDER='$GITHUB_WORKSPACE/${{ inputs.OUTPUT_FOLDER }}'" >> $GITHUB_ENV
           fi
       - name: Build documentation
@@ -68,11 +69,11 @@ jobs:
           echo "Inputs OUTPUT_FOLDER: ${{ inputs.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ inputs.ADDITIONAL_OPTIONS }}"
           echo "Env updates OUTPUT_FOLDER: ${{ env.OUTPUT_FOLDER }}, ADDITIONAL_OPTIONS: ${{ env.ADDITIONAL_OPTIONS }}"
           echo "PROJECT_ROOT_RELATIVE_PATH : $PROJECT_ROOT_RELATIVE_PATH and GITHUB_WORKSPACE : $GITHUB_WORKSPACE"
-          cargo doc --target-dir ${{ inputs.OUTPUT_FOLDER }} ${{ inputs.ADDITIONAL_OPTIONS }}
+          echo "HOME PATH : $HOME"
+          cargo doc --target-dir ${{ env.OUTPUT_FOLDER }} ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
         with:
-          if: failure()
           name: Documentation
-          path: ${{ inputs.OUTPUT_FOLDER }}
+          path: ${{ env.OUTPUT_FOLDER }}
           retention-days: 15
