@@ -4,7 +4,7 @@ on:
 
 jobs:
   main_workflow:
-    uses: DjNaGuRo/sozu/.github/workflows/cargo_doc.yml@main
+    uses: DjNaGuRo-R2/gh-reusableWorkflows/.github/workflows/cargo_doc.yml@main
     with:
       ONLY_LIB: true
       RELEASE_MODE: true
