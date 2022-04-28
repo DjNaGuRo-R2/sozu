@@ -71,7 +71,7 @@ jobs:
           cargo doc --target-dir ${{env.OUTPUT_FOLDER}} ${{ env.ADDITIONAL_OPTIONS }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v2
-        if: failure()
+        if: success()
         with:
           name: Documentation
           path: ${{ env.OUTPUT_FOLDER }}
